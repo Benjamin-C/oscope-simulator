@@ -1,0 +1,6 @@
+log*
+*.flac
+*.wav
+*.mp3
+.vscode/
+bin/
