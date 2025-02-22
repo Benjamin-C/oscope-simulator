@@ -85,7 +85,11 @@ public class SyncSampleBuffer {
         return readhead == writehead && !empty;
     }
 
-    public synchronized int getSize() {
+    public int size() {
+        return size;
+    }
+
+    public synchronized int count() {
         if(isFull()) {
             return size;
         }

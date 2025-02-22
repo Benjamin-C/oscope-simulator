@@ -67,7 +67,7 @@ public class ScopeScreen extends JPanel {
         
         add(controlsPanel);
 
-        color = Color.GREEN;
+        color = new Color(255, 128, 0);
         decayRate = (int) (256 / (decay*targetFPS)) * 3;
 
         screen = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
@@ -133,6 +133,10 @@ public class ScopeScreen extends JPanel {
                 throw e;
             }
         }
+    }
+
+    public void addPoints() {
+        
     }
 
     public boolean isUpdating() {

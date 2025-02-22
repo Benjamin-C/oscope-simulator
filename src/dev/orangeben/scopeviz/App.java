@@ -1,6 +1,7 @@
 package dev.orangeben.scopeviz;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -17,6 +18,7 @@ import javax.sound.sampled.Line;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -92,9 +94,20 @@ public class App {
         jp.setLayout(new BoxLayout(jp, BoxLayout.Y_AXIS));
         jp.setBackground(screen.getBackground());
 
-        
+        JPanel infopannel = new JPanel();
+        infopannel.setLayout(new BoxLayout(infopannel, BoxLayout.X_AXIS));
+        infopannel.setBackground(screen.getBackground());
+        infopannel.setForeground(Color.WHITE);
+
         JLabel spsLabel = new JLabel("SPS: ");
-        jp.add(spsLabel);
+        infopannel.add(spsLabel);
+        infopannel.add(Box.createRigidArea(new Dimension(25, 0)));
+
+        JLabel buffsizeLabel = new JLabel("Buff: ");
+        infopannel.add(buffsizeLabel);
+        
+        
+        jp.add(infopannel);
         jp.add(screen);
 
         jf.add(jp);
@@ -183,6 +196,7 @@ public class App {
             line.open(format);
             line.start();
             byte[] data = new byte[32];
+            retimer.clear();
             long last = System.nanoTime();
             while(true) {
                 int numBytesRead = line.read(data, 0, data.length);
@@ -193,6 +207,9 @@ public class App {
                     fos.write(data);
                     caplen += data.length;
                 }
+                // System.out.println("Buffer has " + retimer.getSize() + " samples left");
+                int sz = retimer.count();
+                buffsizeLabel.setText(String.format("Buff: %d (%.1f%%) ", sz, ((double)sz/retimer.size())*100d));
                 for(int i = 0; i < numBytesRead; i += 4) {
                     short l = (short) ((data[i+1] << 8) | (data[i+0] & 0xFF));
                     short r = (short) ((data[i+3] << 8) | (data[i+2] & 0xFF));

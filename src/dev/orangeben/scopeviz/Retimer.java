@@ -29,6 +29,8 @@ public abstract class Retimer {
         timer = new Thread(name) {
             @Override
             public void run() {
+                last = System.nanoTime();
+                boolean behind = false;
                 while(running) {
                     try {
                         long tdiff = (last + targetTickTime) - System.nanoTime();
@@ -45,12 +47,16 @@ public abstract class Retimer {
                             tps = 1e9d / (System.nanoTime() - tpslast);
                             tpslast = System.nanoTime();
                             if(ntdiff > targetTickTime) {
-                                double skip = ntdiff / targetTickTime;
-                                System.out.println(String.format("[%s] Behind, skipping %.1f ticks with %d waiting", name, skip, buff.getSize()));
-                                last = System.nanoTime();
+                                if(!behind) {
+                                    behind = true;
+                                    double skip = (double) ntdiff / targetTickTime;
+                                    System.out.println(String.format("[%s] Behind, speeding %.1f ticks with %d waiting", name, skip, buff.count()));
+                                }
+                                // last = System.nanoTime();
                             } else {
-                                last += targetTickTime;
+                                behind = false;
                             }
+                            last += targetTickTime;
                         } else {
                             try {
                                 sleep((long) (tdiff / 1e6), (int) (tdiff % 1e6));
@@ -81,8 +87,28 @@ public abstract class Retimer {
         return buff.add(l, r);
     }
 
+    public boolean isFull() {
+        return buff.isFull();
+    }
+
+    public boolean isEmpty() {
+        return buff.isEmpty();
+    }
+
+    public int size() {
+        return buff.size();
+    }
+
+    public int count() {
+        return buff.count();
+    }
+
     public double getTPS() {
         return tps;
+    }
+
+    public void clear() {
+        buff.clear();
     }
 
     public abstract void tick(short l, short r);
