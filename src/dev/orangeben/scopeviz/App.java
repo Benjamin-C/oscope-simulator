@@ -21,7 +21,6 @@ import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JTextArea;
 
 public class App {
 
@@ -141,6 +140,16 @@ public class App {
         //     System.out.println(info.toString());
         //     showLineInfoFormats(info);
         // }
+
+        Retimer retimer = new Retimer(4410, 10, 32768) {
+			@Override
+			public void tick(short l, short r) {
+				int x = (int) ((double) l / pad) + screen.WIDTH/2;
+                int y = screen.HEIGHT - (int) (((double) r / pad) + screen.HEIGHT/2);
+                screen.addPoint(x, y);
+			}
+        };
+        retimer.start();
         
         AudioFormat format = new AudioFormat(44100, 16, 2, true, false);
         
@@ -156,8 +165,6 @@ public class App {
         }
         // Obtain and open the line.
         try {
-            PrintWriter csv = new PrintWriter("log.csv");
-
             File wav = new File("log.wav");
             FileOutputStream fos = new FileOutputStream(wav);
             byte[] header = {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'A', 'V', 'E', 'f', 'm', 't', ' ', 0x10, 0, 0, 0, 1, 0, 2, 0, 0x44, (byte) 0xAC, 0, 0, 0x10, (byte) 0xB1, 2, 0, 4, 0, 0x10, 0, 'd', 'a', 't', 'a', 0, 0, 0, 0};
@@ -189,11 +196,8 @@ public class App {
                 for(int i = 0; i < numBytesRead; i += 4) {
                     short l = (short) ((data[i+1] << 8) | (data[i+0] & 0xFF));
                     short r = (short) ((data[i+3] << 8) | (data[i+2] & 0xFF));
-                    int x = (int) ((double) l / pad) + screen.WIDTH/2;
-                    int y = screen.HEIGHT - (int) (((double) r / pad) + screen.HEIGHT/2);
-                    screen.addPoint(x, y);
-                    if(capt) {
-                        csv.println(String.format("%d, %d, %d, %d, %d, %d, %d, %d,", data[i+0], data[i+1], data[i+2], data[i+3], l, r, x, y));
+                    if(!retimer.add(l, r)) {
+                        System.out.println("Buffer full, skipping sample!");
                     }
                 }
                 if(capt) {
@@ -214,8 +218,6 @@ public class App {
                         raf.write(caplenarr);
                         raf.close();
                         System.out.println("Done");
-
-                        csv.close();
 
                         screen.save("log.png");
                         System.exit(0);
