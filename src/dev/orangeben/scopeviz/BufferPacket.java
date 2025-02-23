@@ -8,8 +8,8 @@ public class BufferPacket {
     private int wp = 0;
 
     public BufferPacket(int size) {
-        if(size <= 0) {
-            throw new IllegalArgumentException("Size must be >0");
+        if(size < 0) {
+            throw new IllegalArgumentException("Size must be positive");
         }
         ldata = new int[size];
         rdata = new int[size];

@@ -1,16 +1,15 @@
 package dev.orangeben.scopeviz;
 
 import javax.imageio.ImageIO;
-import javax.naming.ConfigurationException;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
-import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -21,19 +20,15 @@ import java.io.IOException;
 public class ScopeScreen extends JPanel {
 
     /** The size of the display */
-    public final int SIZE = 1024;
+    public final int SIZE = 512;
     /** The color of the display */
     private Color color;
     /** Frame updater thread */
     private Thread updater;
     /** If the display is running */
     private volatile boolean updating;
-    /** The sample rate of the incoming data. Must be an integer multiple of the target FPS */
-    // private final double samplesPerSecond = 44100;
     /** The target nubmer of frames per seconds to display */
     private final double targetFPS = 60;
-    /** The number of nanoseconds per frame */
-    // private final int samplesPerFrame = (int) (samplesPerSecond / targetFPS);
     /** The actual observed FPS */
     private volatile double fps = 0;
     /** The actual scope screen */
@@ -52,10 +47,14 @@ public class ScopeScreen extends JPanel {
     private JCheckBox pointcheck;
     /** If points are being rdrawn */
     private boolean drawPoints = false;
-    /** Panel of screen controls */
-    private JPanel controlsPanel;
+    /** Control menu bar */
+    private JCheckBox fpscheck;
+    /** Checkbox to control FPS drawing */
+    private boolean drawFPS = true;
+    /** If FPS is being drawn */
+    private JMenu controlsMenu;
     /** Update stop button */
-    private JButton stopButton;
+    private JMenuItem stopButton;
     /** Approximate screen decay time in seconds */
     private double decay = 0.1;
     /** x or y of previously drawn point */
@@ -82,10 +81,10 @@ public class ScopeScreen extends JPanel {
 
         this.source = source;
         
-        controlsPanel = new JPanel();
-        controlsPanel.setBackground(getBackground());
+        controlsMenu = new JMenu("Scope");
+        controlsMenu.setBackground(getBackground());
         
-        stopButton = new JButton("Stop");
+        stopButton = new JMenuItem("Stop");
         stopButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 if(updating) {
@@ -95,34 +94,39 @@ public class ScopeScreen extends JPanel {
                 }
             }
         });
-        controlsPanel.add(stopButton);
+        controlsMenu.add(stopButton);
         
         fpslabel = new JLabel();
-        controlsPanel.add(fpslabel);
+        controlsMenu.add(fpslabel);
 
         linecheck = new JCheckBox("Draw lines");
-        linecheck.setBackground(getBackground());
-        linecheck.setForeground(color);
         linecheck.setSelected(drawLines);
         linecheck.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 drawLines = linecheck.isSelected();
             }
         });
-        controlsPanel.add(linecheck);
+        controlsMenu.add(linecheck);
 
         pointcheck = new JCheckBox("Draw points");
-        pointcheck.setBackground(getBackground());
-        pointcheck.setForeground(color);
         pointcheck.setSelected(drawPoints);
         pointcheck.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 drawPoints = pointcheck.isSelected();
             }
         });
-        controlsPanel.add(pointcheck);
+        controlsMenu.add(pointcheck);
 
-        add(controlsPanel);
+        fpscheck = new JCheckBox("Draw FPS");
+        fpscheck.setSelected(drawFPS);
+        fpscheck.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                drawFPS = fpscheck.isSelected();
+            }
+        });
+        controlsMenu.add(fpscheck);
+
+        add(controlsMenu);
 
         color = new Color(255, 128, 0);
         decayRate = (int) (256 / (decay*targetFPS)) * 3;
@@ -145,6 +149,10 @@ public class ScopeScreen extends JPanel {
         screenPanel.setBackground(getBackground());
         screenPanel.add(screenLabel);
         add(screenPanel);
+    }
+
+    public JMenu getControlMenu() {
+        return controlsMenu;
     }
 
     /**
@@ -199,6 +207,10 @@ public class ScopeScreen extends JPanel {
                 }
                 pak.nextRead();
             }
+            if(drawFPS) {
+                g.setColor(fpslabel.getForeground());
+                g.drawString(String.format("FPS: % 4.1f", fps), 4, g.getFontMetrics().getHeight());
+            }
         }
         screenLabel.repaint();
     }
@@ -213,12 +225,7 @@ public class ScopeScreen extends JPanel {
 
     /** Starts the updater */
     public void start() {
-        try {
-			source.start();
-		} catch (ConfigurationException e) {
-			e.printStackTrace();
-            return;
-		}
+        source.start();
         updating = true;
         updater = new Thread("screen_updater") {
             long last = System.nanoTime();

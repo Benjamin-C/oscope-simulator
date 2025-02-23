@@ -1,9 +1,7 @@
 package dev.orangeben.scopeviz;
 
-import java.io.RandomAccessFile;
 import java.util.Arrays;
 
-import javax.naming.ConfigurationException;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
@@ -14,8 +12,8 @@ import javax.sound.sampled.TargetDataLine;
 
 public class CaptureSource extends BufferSource {
 
-    private boolean ready = false; 
     private int interfacenum = 4;
+    private int linenum = 0;
     private Mixer.Info mixerinfo;
     private Mixer mixer;
     private AudioFormat format;
@@ -28,23 +26,31 @@ public class CaptureSource extends BufferSource {
 
     public CaptureSource() {
         super(0, 0);
+        ready = false;
     }
 
 	@Override
-	public void start() throws ConfigurationException {
+	public void start() {
         if(ready) {
             stop();
             ready = false;
         }
         mixerinfo = AudioSystem.getMixerInfo()[interfacenum];
         mixer = AudioSystem.getMixer(mixerinfo);
+        
+
         format = new AudioFormat(44100, 16, 2, true, false);
         createBuffer(format.getSampleRate(), (int) Math.pow(2, format.getSampleSizeInBits()) - 1);
 
         datalineinfo = new DataLine.Info(TargetDataLine.class, format);
-        lineinfo = mixer.getTargetLineInfo()[0];
+        Line.Info[] lineinfos = mixer.getTargetLineInfo();
+        if(linenum >= lineinfos.length) {
+            System.out.println("The selected mixer doesn't have a line number " + linenum);
+            return;
+        }
+        lineinfo = mixer.getTargetLineInfo()[linenum];
         if(!AudioSystem.isLineSupported(lineinfo)) {
-            throw new ConfigurationException("Can't open the desired audio line");
+            throw new UnsupportedOperationException("Can't open the desired audio line");
         }
         System.out.println("Getting audio from line" + datalineinfo.toString());
         try {
@@ -92,11 +98,6 @@ public class CaptureSource extends BufferSource {
         }
 	}
 
-	@Override
-	public boolean ready() {
-		return ready;
-	}
-
     static void showLineInfoFormats(final Line.Info lineInfo) {
         if (lineInfo instanceof DataLine.Info) {
             final DataLine.Info dataLineInfo = (DataLine.Info)lineInfo;
@@ -129,6 +130,51 @@ public class CaptureSource extends BufferSource {
             }
         }
     }
+
+    public String[] getMixers() {
+        Mixer.Info[] mixerinfos = AudioSystem.getMixerInfo();
+        String[] ret = new String[mixerinfos.length];
+        for(int i = 0; i < mixerinfos.length; i++) {
+            // System.out.println(i + ": " + mixerinfos[i].toString());
+            ret[i] = mixerinfos[i].toString();
+        }
+        return ret;
+    }
+
+    public String[] getLines() {
+        return getLines(interfacenum);
+    }
+
+    public String[] getLines(int num) {
+        Mixer.Info mi = AudioSystem.getMixerInfo()[num];
+        Mixer m = AudioSystem.getMixer(mi);
+        String[] ret = new String[m.getSourceLineInfo().length+m.getTargetLineInfo().length];
+        int n = 0;
+        for(Line.Info l : m.getSourceLineInfo()) {
+            ret[n++] = l.toString();
+        }
+        for(Line.Info l : m.getTargetLineInfo()) {
+            ret[n++] = l.toString();
+        }
+        return ret;
+    }
+
+    public int getInterfaceNum() {
+        return interfacenum;
+    }
+
+    public int getLineNum() {
+        return linenum;
+    }
+
+    public void setInterfaceNum(int num) {
+        interfacenum = num;
+    }
+
+    public void setLineNum(int num) {
+        linenum = num;
+    }
+
 
     // System.out.println("Mixers");
         // Mixer.Info[] mixerinfos = AudioSystem.getMixerInfo();

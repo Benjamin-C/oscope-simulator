@@ -1,19 +1,18 @@
 package dev.orangeben.scopeviz;
 
-import javax.naming.ConfigurationException;
-
 public class BufferSource implements AudioSource {
 
     protected SyncSampleBuffer buff;
     protected float samplerate;
     protected int maxval;
+    protected boolean ready = true;
 
     public BufferSource(float samplerate, int maxval) {
         createBuffer(samplerate, maxval);
     }
 
 	@Override
-	public void start() throws ConfigurationException{
+	public void start() {
         // Don't need to do anything special here
 	}
 
@@ -25,17 +24,23 @@ public class BufferSource implements AudioSource {
 	@Override
 	public boolean ready() {
         // Has no setup or cleanup to do, so always running
-        return true;
+        return ready;
 	}
 
 	@Override
 	public BufferPacket read(int count) {
-        return buff.getMany(count);
+        if(ready) {
+            return buff.getMany(count);
+        } else {
+            return new BufferPacket(0);
+        }
 	}
 
 	@Override
 	public void skip(int count) {
-        buff.skip(count);
+        if(ready) {
+            buff.skip(count);
+        }
 	}
 
     @Override

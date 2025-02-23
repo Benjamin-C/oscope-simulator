@@ -1,11 +1,9 @@
 package dev.orangeben.scopeviz;
 
-import javax.naming.ConfigurationException;
-
 public interface AudioSource {
 
     /** Completes any initialization for the source */
-    public void start() throws ConfigurationException;
+    public void start();
     /** Completes any cleanup for the source */
     public void stop();
     /** Checks if the source ready to provide data  */

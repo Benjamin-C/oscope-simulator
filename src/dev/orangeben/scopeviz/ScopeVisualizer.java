@@ -1,13 +1,13 @@
 package dev.orangeben.scopeviz;
 
 import java.awt.Color;
-import java.awt.Dimension;
 
-import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
-import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
 import javax.swing.JPanel;
+import javax.swing.UIManager;
 
 public class ScopeVisualizer {
 
@@ -33,12 +33,13 @@ public class ScopeVisualizer {
     
     public static void main(String[] args) throws Exception {
 
-        JFrame jf = new JFrame();
+        JFrame jf = new JFrame("Audio Visualizer Scope");
+        UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         jf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         
         // BufferSource as = new BufferSource(44100);
-        CaptureSource as = new CaptureSource();
-        screen = new ScopeScreen(as);
+        CaptureSource cs = new CaptureSource();
+        screen = new ScopeScreen(cs);
         screen.start();
         
         JPanel jp = new JPanel();
@@ -49,14 +50,50 @@ public class ScopeVisualizer {
         infopannel.setLayout(new BoxLayout(infopannel, BoxLayout.X_AXIS));
         infopannel.setBackground(screen.getBackground());
         infopannel.setForeground(Color.WHITE);
+
+        JMenuBar menubar = new JMenuBar();
+        JMenu sourcemenu = new JMenu("Source");
+        SelectJMenu mixermenu = new SelectJMenu("Mixer", cs.getMixers(), cs.getInterfaceNum()) {
+			@Override
+			public void onUpdate(int num, Object arg, SelectJMenu menu) {
+                if(menu.getSelectedIndex() != num) {
+                    cs.setInterfaceNum(num);
+                    ((SelectJMenu) arg).setItems(cs.getLines(num));
+                    if(menu.getText().charAt(0) != '*') {
+                        menu.setText("*" + menu.getText());
+                    }
+                }
+			}
+            
+        };
+        SelectJMenu linemenu = new SelectJMenu("Line", cs.getLines(), cs.getLineNum()) {
+			@Override
+			public void onUpdate(int num, Object arg, SelectJMenu menu) {
+                System.out.println("Selecting " + num);
+                cs.setLineNum(num);
+                cs.stop();
+                cs.start();
+                if(arg instanceof JMenu) {
+                    if(((JMenu) arg).getText().charAt(0) == '*') {
+                        ((JMenu) arg).setText(((JMenu) arg).getText().substring(1));
+                    }
+                } else {
+                    System.out.println("Arg was not a menu");
+                    System.out.println(arg);
+                }
+			}
+            
+        };
+        mixermenu.setArg(linemenu);
+        linemenu.setArg(mixermenu);
         
-        JLabel spsLabel = new JLabel("SPS: ");
-        infopannel.add(spsLabel);
-        infopannel.add(Box.createRigidArea(new Dimension(25, 0)));
+        sourcemenu.add(mixermenu);
+        sourcemenu.add(linemenu);
         
-        JLabel buffsizeLabel = new JLabel("Buff: ");
-        infopannel.add(buffsizeLabel);
-        
+        menubar.add(screen.getControlMenu());
+        menubar.add(sourcemenu);
+
+        jf.setJMenuBar(menubar);
         
         jp.add(infopannel);
         jp.add(screen);
