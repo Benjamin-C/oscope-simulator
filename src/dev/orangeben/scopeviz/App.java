@@ -25,9 +25,9 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 public class App {
-
+    
     static double pad = 64;
-  
+    
     static void showLineInfoFormats(final Line.Info lineInfo) {
         if (lineInfo instanceof DataLine.Info) {
             final DataLine.Info dataLineInfo = (DataLine.Info)lineInfo;
@@ -64,7 +64,7 @@ public class App {
             }
         }
     }
-
+    
     public static void feedTestData(ScopeScreen screen) {
         double time = 0;
         System.out.println("Test data!");
@@ -84,37 +84,40 @@ public class App {
     }
     
     public static void main(String[] args) throws Exception {
+
         JFrame jf = new JFrame();
-        jf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        jf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         
         ScopeScreen screen = new ScopeScreen();
         screen.start();
+
+        pad = Math.round((double) Short.MAX_VALUE / (screen.WIDTH/2));
         
         JPanel jp = new JPanel();
         jp.setLayout(new BoxLayout(jp, BoxLayout.Y_AXIS));
         jp.setBackground(screen.getBackground());
-
+        
         JPanel infopannel = new JPanel();
         infopannel.setLayout(new BoxLayout(infopannel, BoxLayout.X_AXIS));
         infopannel.setBackground(screen.getBackground());
         infopannel.setForeground(Color.WHITE);
-
+        
         JLabel spsLabel = new JLabel("SPS: ");
         infopannel.add(spsLabel);
         infopannel.add(Box.createRigidArea(new Dimension(25, 0)));
-
+        
         JLabel buffsizeLabel = new JLabel("Buff: ");
         infopannel.add(buffsizeLabel);
         
         
         jp.add(infopannel);
         jp.add(screen);
-
+        
         jf.add(jp);
-
+        
         jf.pack();
         jf.setVisible(true);
-
+        
         // feedTestData(screen);
         
         // System.out.println("Mixers");
@@ -126,7 +129,7 @@ public class App {
         Mixer.Info mixerinfo = AudioSystem.getMixerInfo()[interfacenum];
         Mixer mixer = AudioSystem.getMixer(mixerinfo);
         System.out.println("Getting stream from " + mixerinfo.toString());
-
+        
         // System.out.println("Source Lines");
         // for(Line.Info l : mixer.getSourceLineInfo()) {
         //     System.out.println(l.toString());
@@ -153,16 +156,16 @@ public class App {
         //     System.out.println(info.toString());
         //     showLineInfoFormats(info);
         // }
-
-        Retimer retimer = new Retimer(4410, 10, 32768) {
-			@Override
-			public void tick(short l, short r) {
-				int x = (int) ((double) l / pad) + screen.WIDTH/2;
-                int y = screen.HEIGHT - (int) (((double) r / pad) + screen.HEIGHT/2);
-                screen.addPoint(x, y);
-			}
-        };
-        retimer.start();
+        
+        // Retimer retimer = new Retimer(4410, 10, 32768) {
+        // 	@Override
+        // 	public void tick(short l, short r) {
+        // 		int x = (int) ((double) l / pad) + screen.WIDTH/2;
+        //         int y = screen.HEIGHT - (int) (((double) r / pad) + screen.HEIGHT/2);
+        //         screen.addPoint(x, y);
+        // 	}
+        // };
+        // retimer.start();
         
         AudioFormat format = new AudioFormat(44100, 16, 2, true, false);
         
@@ -182,21 +185,22 @@ public class App {
             FileOutputStream fos = new FileOutputStream(wav);
             byte[] header = {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'A', 'V', 'E', 'f', 'm', 't', ' ', 0x10, 0, 0, 0, 1, 0, 2, 0, 0x44, (byte) 0xAC, 0, 0, 0x10, (byte) 0xB1, 2, 0, 4, 0, 0x10, 0, 'd', 'a', 't', 'a', 0, 0, 0, 0};
             fos.write(header);
-
+            
             for(byte b : header) {
                 System.out.print(String.format(" %02X", b));
             }
             System.out.println();
-
+            
             int caplen = 0;
             boolean capt = true;
-
+            
             System.out.println("Getting audio from line" + info.toString());
             line = (TargetDataLine) mixer.getLine(info);
-            line.open(format);
+            final int AUDIO_BUFF_SIZE = 32;
+            line.open(format, AUDIO_BUFF_SIZE);
             line.start();
-            byte[] data = new byte[32];
-            retimer.clear();
+            byte[] data = new byte[AUDIO_BUFF_SIZE];
+            // retimer.clear();
             long last = System.nanoTime();
             while(true) {
                 int numBytesRead = line.read(data, 0, data.length);
@@ -208,15 +212,19 @@ public class App {
                     caplen += data.length;
                 }
                 // System.out.println("Buffer has " + retimer.getSize() + " samples left");
-                int sz = retimer.count();
-                buffsizeLabel.setText(String.format("Buff: %d (%.1f%%) ", sz, ((double)sz/retimer.size())*100d));
+                int sz = screen.getBuffCount();
+                buffsizeLabel.setText(String.format("Buff: %d (%.1f%%) ", sz, ((double)sz/screen.getBuffSize())*100d));
+                BufferPacket pak = new BufferPacket(numBytesRead);
                 for(int i = 0; i < numBytesRead; i += 4) {
                     short l = (short) ((data[i+1] << 8) | (data[i+0] & 0xFF));
                     short r = (short) ((data[i+3] << 8) | (data[i+2] & 0xFF));
-                    if(!retimer.add(l, r)) {
+                    int x = (int) ((double) l / pad) + screen.WIDTH/2;
+                    int y = screen.HEIGHT - (int) (((double) r / pad) + screen.HEIGHT/2);
+                    if(!pak.write(x, y)) {
                         System.out.println("Buffer full, skipping sample!");
                     }
                 }
+                screen.addPoints(pak);
                 if(capt) {
                     // if(caplen > 4410) {
                     //     screen.stop();
@@ -235,7 +243,7 @@ public class App {
                         raf.write(caplenarr);
                         raf.close();
                         System.out.println("Done");
-
+                        
                         screen.save("log.png");
                         System.exit(0);
                     }
@@ -243,7 +251,7 @@ public class App {
                 long dur = System.nanoTime() - last;
                 last = System.nanoTime();
                 double sps = (1e9d / (double) dur);
-                spsLabel.setText(String.format("SPS: %.3f", sps/1000d));
+                spsLabel.setText(String.format("SPS: % 8.3f", sps/1000d));
                 // spsLabel.setText(String.format("SPS: %d", dur));
             }
         } catch (LineUnavailableException ex) {

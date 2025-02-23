@@ -5,9 +5,9 @@ public class SyncSampleBuffer {
     /** The max number of samples the buffer can hold */
     private int size = 0;
     /** The left channel samples */
-    private short[] lsamp;
+    private int[] lsamp;
     /** The right channel samples */
-    private short[] rsamp;
+    private int[] rsamp;
     /** The next location to read from */
     private int readhead = 0;
     /** The next location to write to */
@@ -19,8 +19,8 @@ public class SyncSampleBuffer {
 
     public SyncSampleBuffer(int size) {
         this.size = size;
-        lsamp = new short[size];
-        rsamp = new short[size];
+        lsamp = new int[size];
+        rsamp = new int[size];
         lock = new Object();
     }
 
@@ -39,7 +39,7 @@ public class SyncSampleBuffer {
      * @param r The right value
      * @return If the value was added
      */
-    public synchronized boolean add(short l, short r) {
+    public synchronized boolean add(int l, int r) {
         if(!isFull()) {
             lsamp[writehead] = l;
             rsamp[writehead] = r;
@@ -55,18 +55,54 @@ public class SyncSampleBuffer {
      * Gets the next sample from the buffer
      * @return The sample as an array, or an empty array if the buffer is empty
      */
-    public synchronized short[] get() {
+    public synchronized int[] get() {
         if(!empty) {
-            short[] ret = {lsamp[readhead], rsamp[readhead]};
+            int[] ret = {lsamp[readhead], rsamp[readhead]};
             readhead = ++readhead % size;
             if(readhead == writehead) {
                 empty = true;
             }
             return ret;
         } else {
-            short[] ret = {};
+            int[] ret = {};
             return ret;
         }
+    }
+
+    public synchronized BufferPacket getMany(int count) {
+        BufferPacket ret = new BufferPacket(count);
+        for(int i = 0; i < count; i++) {
+            if(!empty) {
+                ret.write(lsamp[readhead], rsamp[readhead]);
+                readhead = ++readhead % size;
+                if(readhead == writehead) {
+                    empty = true;
+                }
+            } else {
+                throw new ArrayIndexOutOfBoundsException("The buffer is empty");
+            }
+        }
+        return ret;
+    }
+
+    public synchronized boolean addMany(BufferPacket pak) {
+        pak.seek(0);
+        for(int i = 0; i < pak.dataCount(); i++) {
+            if(!isFull()) {
+                lsamp[writehead] = pak.readL();
+                rsamp[writehead] = pak.readR();
+                pak.nextRead();
+                writehead = ++writehead % size;
+                empty = false;
+            } else {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    public synchronized void skip(int count) {
+        readhead = (readhead + count) % size;
     }
 
     /**

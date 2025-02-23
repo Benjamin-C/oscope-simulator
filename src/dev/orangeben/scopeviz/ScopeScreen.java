@@ -1,7 +1,6 @@
 package dev.orangeben.scopeviz;
 
 import javax.imageio.ImageIO;
-import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
@@ -23,7 +22,9 @@ public class ScopeScreen extends JPanel {
     private Color color;
     private Thread updater;
     private volatile boolean updating;
+    private final double samplesPerSecond = 44100;
     private final double targetFPS = 60;
+    private final int samplesPerFrame = (int) (samplesPerSecond / targetFPS);
     private volatile double fps = 0;
     private BufferedImage screen;
     private JLabel screenLabel;
@@ -32,10 +33,7 @@ public class ScopeScreen extends JPanel {
     private JButton stopButton;
     private double decay = 0.1;
 
-    private int xbuff[] = new int[16386];
-    private int ybuff[] = new int[16386];
-    private int buffpos = 0;
-    private Object bufflock = new Object();
+    private SyncSampleBuffer bigbuff;
 
     private final int decayRate;
 
@@ -44,6 +42,8 @@ public class ScopeScreen extends JPanel {
     public ScopeScreen() {
         setBackground(new Color(8, 8, 8));
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+
+        bigbuff = new SyncSampleBuffer((int) samplesPerSecond);
         
         controlsPanel = new JPanel();
         // controlsPanel.setLayout(new BoxLayout(controlsPanel, BoxLayout.X_AXIS));
@@ -101,12 +101,14 @@ public class ScopeScreen extends JPanel {
             g.setColor(new Color(0, 0, 0, decayRate));
             g.fillRect(0, 0, WIDTH, HEIGHT);
             g.setColor(color);
-            synchronized(bufflock) {
-                for(int i = buffpos-1; i >= 0; i--) {
-                    screen.setRGB(xbuff[i], ybuff[i], color.getRGB());
+            BufferPacket pak = bigbuff.getMany((samplesPerFrame > bigbuff.count()) ? bigbuff.count() : samplesPerFrame);
+            while(pak.hasMoreData()) {
+                int x = pak.readL();
+                int y = pak.readR();
+                if((x >= 0 && x <= WIDTH-1 && y >= 0 && y <= HEIGHT-1)) {
+                    screen.setRGB(x, y, color.getRGB());
                 }
-                buffpos = 0;
-                ovc = 0;
+                pak.nextRead();
             }
         }
         screenLabel.repaint();
@@ -115,28 +117,13 @@ public class ScopeScreen extends JPanel {
     int ovc = 0;
 
     public void addPoint(int x, int y) {
-        if(updating) {
-            try {
-                if(x >= 0 && x <= WIDTH-1 && y >= 0 && y <= HEIGHT-1) {
-                    if(buffpos < xbuff.length) {
-                        synchronized(bufflock) {
-                            xbuff[buffpos] = x;
-                            ybuff[buffpos] = y;
-                            buffpos++;
-                        }
-                    } else {
-                        System.out.println("Buffer full!" + buffpos + " " + ovc++);
-                    }
-                }
-            } catch (ArrayIndexOutOfBoundsException e) {
-                System.out.println(String.format("Point error at (%d, %d)", x, y));
-                throw e;
-            }
+        if(x >= 0 && x <= WIDTH-1 && y >= 0 && y <= HEIGHT-1) {
+            bigbuff.add(x, y);
         }
     }
 
-    public void addPoints() {
-        
+    public void addPoints(BufferPacket pak) {
+        bigbuff.addMany(pak);
     }
 
     public boolean isUpdating() {
@@ -163,6 +150,9 @@ public class ScopeScreen extends JPanel {
                             if(ntdiff > targetFrameTime) {
                                 double skip = ntdiff / targetFrameTime;
                                 System.out.println(String.format("Behind, skipping %.1f frames", skip));
+                                int sc = (int) Math.floor(skip);
+                                last += targetFrameTime * sc;
+                                bigbuff.skip(sc*samplesPerFrame);
                                 last = System.nanoTime();
                                 fpslabel.setForeground(Color.RED);
                             } else {
@@ -196,5 +186,13 @@ public class ScopeScreen extends JPanel {
             e.printStackTrace();
         }
         stopButton.setText("Start");
+    }
+
+    public int getBuffCount() {
+        return bigbuff.count();
+    }
+
+    public int getBuffSize() {
+        return bigbuff.size();
     }
 }
