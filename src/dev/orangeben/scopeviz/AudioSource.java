@@ -1,9 +1,11 @@
 package dev.orangeben.scopeviz;
 
+import javax.naming.ConfigurationException;
+
 public interface AudioSource {
 
     /** Completes any initialization for the source */
-    public void start();
+    public void start() throws ConfigurationException;
     /** Completes any cleanup for the source */
     public void stop();
     /** Checks if the source ready to provide data  */
@@ -19,5 +21,15 @@ public interface AudioSource {
      * @param count The max number of samples to ignore.
      */
     public void skip(int count);
+    /**
+     * Gets the samplerate the source provides samples at.
+     * @return The samplerate of the buffer. May return 0 if the buffer doesn't have a defined samplerate.
+     */
+    public float getSamplerate();
+    /**
+     * Gets the max value a sample can be. The minimum value is -getSampleMax()-1
+     * @return The max sample value
+     */
+    public int getSampleMax();
 
 }

@@ -1,6 +1,7 @@
 package dev.orangeben.scopeviz;
 
 import javax.imageio.ImageIO;
+import javax.naming.ConfigurationException;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
@@ -28,11 +29,11 @@ public class ScopeScreen extends JPanel {
     /** If the display is running */
     private volatile boolean updating;
     /** The sample rate of the incoming data. Must be an integer multiple of the target FPS */
-    private final double samplesPerSecond = 44100;
+    // private final double samplesPerSecond = 44100;
     /** The target nubmer of frames per seconds to display */
     private final double targetFPS = 60;
     /** The number of nanoseconds per frame */
-    private final int samplesPerFrame = (int) (samplesPerSecond / targetFPS);
+    // private final int samplesPerFrame = (int) (samplesPerSecond / targetFPS);
     /** The actual observed FPS */
     private volatile double fps = 0;
     /** The actual scope screen */
@@ -159,10 +160,13 @@ public class ScopeScreen extends JPanel {
             g.setColor(new Color(0, 0, 0, decayRate));
             g.fillRect(0, 0, SIZE, SIZE);
             g.setColor(color);
-            BufferPacket pak = source.read(samplesPerFrame);
+            BufferPacket pak = source.read((int) (source.getSamplerate()/targetFPS));
+            int pad = (int) Math.round((double) Short.MAX_VALUE / (SIZE/2));
             while(pak.hasMoreData()) {
-                int x = pak.readL();
-                int y = pak.readR();
+                int l = pak.readL();
+                int r = pak.readR();
+                int x = (int) ((double) l / pad) + SIZE/2;
+                int y = SIZE - (int) (((double) r / pad) + SIZE/2);
                 if((x >= 0 && x <= SIZE-1 && y >= 0 && y <= SIZE-1)) {
                     if(drawLines) {
                         int xs = (lx-x);
@@ -203,6 +207,12 @@ public class ScopeScreen extends JPanel {
 
     /** Starts the updater */
     public void start() {
+        try {
+			source.start();
+		} catch (ConfigurationException e) {
+			e.printStackTrace();
+            return;
+		}
         updating = true;
         updater = new Thread("screen_updater") {
             long last = System.nanoTime();
@@ -224,7 +234,7 @@ public class ScopeScreen extends JPanel {
                                 System.out.println(String.format("Behind, skipping %.1f frames", skip));
                                 int sc = (int) Math.floor(skip);
                                 last += targetFrameTime * sc;
-                                source.skip(sc*samplesPerFrame);
+                                source.skip((int) (sc*(source.getSamplerate()/targetFPS)));
                                 last = System.nanoTime();
                                 fpslabel.setForeground(Color.RED);
                             } else {
@@ -258,6 +268,7 @@ public class ScopeScreen extends JPanel {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+        source.stop();
         stopButton.setText("Start");
     }
 }

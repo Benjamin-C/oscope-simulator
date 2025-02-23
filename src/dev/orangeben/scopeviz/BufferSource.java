@@ -1,15 +1,19 @@
 package dev.orangeben.scopeviz;
 
+import javax.naming.ConfigurationException;
+
 public class BufferSource implements AudioSource {
 
-    private SyncSampleBuffer buff;
+    protected SyncSampleBuffer buff;
+    protected float samplerate;
+    protected int maxval;
 
-    public BufferSource(int buffsize) {
-        buff = new SyncSampleBuffer(buffsize);
+    public BufferSource(float samplerate, int maxval) {
+        createBuffer(samplerate, maxval);
     }
 
 	@Override
-	public void start() {
+	public void start() throws ConfigurationException{
         // Don't need to do anything special here
 	}
 
@@ -34,6 +38,11 @@ public class BufferSource implements AudioSource {
         buff.skip(count);
 	}
 
+    @Override
+    public float getSamplerate() {
+        return samplerate;
+    }
+
     /**
      * Writes data into the buffer
      * @param pkt the packet of data to write
@@ -57,4 +66,19 @@ public class BufferSource implements AudioSource {
     public int maxSize() {
         return buff.getMaxSize();
     }
+
+    /**
+     * Recreates the audio buffer at the new samplerate. Any existing samples are lost.
+     * @param samplerate The new samplerate
+     */
+    protected void createBuffer(float samplerate, int maxval) {
+        this.samplerate = samplerate;
+        this.maxval = maxval;
+        buff = new SyncSampleBuffer((int) (samplerate/10));
+    }
+
+	@Override
+	public int getSampleMax() {
+        return maxval;
+	}
 }
