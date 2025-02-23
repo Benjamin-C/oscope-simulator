@@ -40,6 +40,8 @@ public class ScopeScreen extends JPanel {
     private BufferedImage screen;
     /** The label that holds the scope screen */
     private JLabel screenLabel;
+    /** The jpanel the screen label lives in */
+    private JPanel screenPanel;
     /** Label to hold the current FPS */
     private JLabel fpslabel;
     /** Checkbox to control line drawing */
@@ -135,11 +137,14 @@ public class ScopeScreen extends JPanel {
         }
         g.setColor(new Color(screen.getRGB(0, 0)));
         g.fillRect(0, 0, SIZE, SIZE);
-        // g.dispose();
         screenLabel = new JLabel(new ImageIcon(screen));
-        screenLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        screenLabel.setBackground(Color.GREEN);
+        // screenLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        add(screenLabel);
+        screenPanel = new JPanel();
+        screenPanel.setBackground(getBackground());
+        screenPanel.add(screenLabel);
+        add(screenPanel);
     }
 
     /**
@@ -172,6 +177,7 @@ public class ScopeScreen extends JPanel {
                         int xs = (lx-x);
                         int ys = (ly-y);
                         double bright = 1d - Math.pow(Math.sqrt((xs*xs)+(ys*ys))/maxdist, 0.08);
+                        // double bright = 1d - Math.sqrt((xs*xs)+(ys*ys))/maxdist;
                         int rv = (int) (color.getRed() * bright)  ;
                         int gv = (int) (color.getGreen() * bright);
                         int bv = (int) (color.getBlue() * bright) ;
