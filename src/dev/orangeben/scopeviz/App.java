@@ -245,7 +245,6 @@ public class App {
                         System.out.println("Done");
                         
                         screen.save("log.png");
-                        System.exit(0);
                     }
                 }
                 long dur = System.nanoTime() - last;

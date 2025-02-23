@@ -4,6 +4,7 @@ import javax.imageio.ImageIO;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
@@ -17,8 +18,15 @@ import java.io.File;
 
 public class ScopeScreen extends JPanel {
 
-    public final int WIDTH = 1024;
-    public final int HEIGHT = 1024;
+    public final int SIZE = 1024;
+    @Deprecated
+    /**
+     * Width of the screen
+     */
+    public final int WIDTH = SIZE;
+    @Deprecated
+    /** Height of the screen */
+    public final int HEIGHT = SIZE;
     private Color color;
     private Thread updater;
     private volatile boolean updating;
@@ -29,13 +37,20 @@ public class ScopeScreen extends JPanel {
     private BufferedImage screen;
     private JLabel screenLabel;
     private JLabel fpslabel;
+    private JCheckBox linecheck;
+    private boolean drawLines = true;
+    private JCheckBox pointcheck;
+    private boolean drawPoints = false;
     private JPanel controlsPanel;
     private JButton stopButton;
     private double decay = 0.1;
 
+    private int lx, ly = 0;
+
     private SyncSampleBuffer bigbuff;
 
     private final int decayRate;
+    private final double maxdist = Math.sqrt(2)*SIZE;
 
     private Graphics g;
 
@@ -64,13 +79,35 @@ public class ScopeScreen extends JPanel {
         
         fpslabel = new JLabel();
         controlsPanel.add(fpslabel);
-        
+
+        linecheck = new JCheckBox("Draw lines");
+        linecheck.setBackground(getBackground());
+        linecheck.setForeground(color);
+        linecheck.setSelected(drawLines);
+        linecheck.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                drawLines = linecheck.isSelected();
+            }
+        });
+        controlsPanel.add(linecheck);
+
+        pointcheck = new JCheckBox("Draw points");
+        pointcheck.setBackground(getBackground());
+        pointcheck.setForeground(color);
+        pointcheck.setSelected(drawPoints);
+        pointcheck.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                drawPoints = pointcheck.isSelected();
+            }
+        });
+        controlsPanel.add(pointcheck);
+
         add(controlsPanel);
 
         color = new Color(255, 128, 0);
         decayRate = (int) (256 / (decay*targetFPS)) * 3;
 
-        screen = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        screen = new BufferedImage(SIZE, SIZE, BufferedImage.TYPE_INT_RGB);
         g = screen.createGraphics();
         g.setColor(color);
         g.fillRect(0, 0, 1, 1);
@@ -79,7 +116,7 @@ public class ScopeScreen extends JPanel {
             g.fillRect(0, 0, 1, 1);
         }
         g.setColor(new Color(screen.getRGB(0, 0)));
-        g.fillRect(0, 0, WIDTH, HEIGHT);
+        g.fillRect(0, 0, SIZE, SIZE);
         // g.dispose();
         screenLabel = new JLabel(new ImageIcon(screen));
         screenLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -87,6 +124,10 @@ public class ScopeScreen extends JPanel {
         add(screenLabel);
     }
 
+    /**
+     * Saves the screen to a PNG
+     * @param filename where to save the screen
+     */
     public void save(String filename) {
         try {
             File out = new File(filename);
@@ -99,14 +140,35 @@ public class ScopeScreen extends JPanel {
     private void redraw() {
         synchronized(g) {
             g.setColor(new Color(0, 0, 0, decayRate));
-            g.fillRect(0, 0, WIDTH, HEIGHT);
+            g.fillRect(0, 0, SIZE, SIZE);
             g.setColor(color);
             BufferPacket pak = bigbuff.getMany((samplesPerFrame > bigbuff.count()) ? bigbuff.count() : samplesPerFrame);
             while(pak.hasMoreData()) {
                 int x = pak.readL();
                 int y = pak.readR();
-                if((x >= 0 && x <= WIDTH-1 && y >= 0 && y <= HEIGHT-1)) {
-                    screen.setRGB(x, y, color.getRGB());
+                if((x >= 0 && x <= SIZE-1 && y >= 0 && y <= SIZE-1)) {
+                    if(drawLines) {
+                        int xs = (lx-x);
+                        int ys = (ly-y);
+                        double bright = 1d - Math.pow(Math.sqrt((xs*xs)+(ys*ys))/maxdist, 0.08);
+                        int rv = (int) (color.getRed() * bright)  ;
+                        int gv = (int) (color.getGreen() * bright);
+                        int bv = (int) (color.getBlue() * bright) ;
+                        try {
+                            g.setColor(new Color(rv, gv, bv));
+                            g.drawLine(lx, ly, x, y);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            System.out.println("rgb:" + rv + " " + gv + " " + bv);
+                        }
+                        if(drawPoints) {
+                            screen.setRGB(lx, ly, color.getRGB());
+                        }
+                        lx = x;
+                        ly = y;
+                    } else if(drawPoints) {
+                        screen.setRGB(x, y, color.getRGB());
+                    }
                 }
                 pak.nextRead();
             }
@@ -117,7 +179,7 @@ public class ScopeScreen extends JPanel {
     int ovc = 0;
 
     public void addPoint(int x, int y) {
-        if(x >= 0 && x <= WIDTH-1 && y >= 0 && y <= HEIGHT-1) {
+        if(x >= 0 && x <= SIZE-1 && y >= 0 && y <= SIZE-1) {
             bigbuff.add(x, y);
         }
     }

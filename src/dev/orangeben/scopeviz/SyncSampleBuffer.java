@@ -14,14 +14,11 @@ public class SyncSampleBuffer {
     private int writehead = 0;
     /** If the buffer is empty */
     private boolean empty = true;
-    /** Buffer lock */
-    private Object lock;
 
     public SyncSampleBuffer(int size) {
         this.size = size;
         lsamp = new int[size];
         rsamp = new int[size];
-        lock = new Object();
     }
 
     /**
