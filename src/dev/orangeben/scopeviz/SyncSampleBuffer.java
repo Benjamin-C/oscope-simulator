@@ -3,7 +3,7 @@ package dev.orangeben.scopeviz;
 public class SyncSampleBuffer {
 
     /** The max number of samples the buffer can hold */
-    private int size = 0;
+    private int maxSize = 0;
     /** The left channel samples */
     private int[] lsamp;
     /** The right channel samples */
@@ -16,7 +16,10 @@ public class SyncSampleBuffer {
     private boolean empty = true;
 
     public SyncSampleBuffer(int size) {
-        this.size = size;
+        if(size < 0) {
+            throw new IllegalArgumentException("Size must be positive");
+        }
+        this.maxSize = size;
         lsamp = new int[size];
         rsamp = new int[size];
     }
@@ -40,7 +43,7 @@ public class SyncSampleBuffer {
         if(!isFull()) {
             lsamp[writehead] = l;
             rsamp[writehead] = r;
-            writehead = ++writehead % size;
+            writehead = ++writehead % maxSize;
             empty = false;
             return true;
         } else {
@@ -55,7 +58,7 @@ public class SyncSampleBuffer {
     public synchronized int[] get() {
         if(!empty) {
             int[] ret = {lsamp[readhead], rsamp[readhead]};
-            readhead = ++readhead % size;
+            readhead = ++readhead % maxSize;
             if(readhead == writehead) {
                 empty = true;
             }
@@ -66,22 +69,35 @@ public class SyncSampleBuffer {
         }
     }
 
+    /**
+     * Gets up to count samples from the buffer. May return less samples if the buffer doesn't have enough available.
+     * @param count The max number of samples to get
+     * @return The samples
+     */
     public synchronized BufferPacket getMany(int count) {
+        if(count <= 0) {
+            throw new IllegalArgumentException("Count must be >0");
+        }
         BufferPacket ret = new BufferPacket(count);
         for(int i = 0; i < count; i++) {
             if(!empty) {
                 ret.write(lsamp[readhead], rsamp[readhead]);
-                readhead = ++readhead % size;
+                readhead = ++readhead % maxSize;
                 if(readhead == writehead) {
                     empty = true;
                 }
             } else {
-                throw new ArrayIndexOutOfBoundsException("The buffer is empty");
+                break;
             }
         }
         return ret;
     }
 
+    /**
+     * Adds many samples to the buffer. The write pointer will be left on the next sample to be added if not all samples are added.
+     * @param pak The samples to add
+     * @return If all samples were added.
+     */
     public synchronized boolean addMany(BufferPacket pak) {
         pak.seek(0);
         for(int i = 0; i < pak.dataCount(); i++) {
@@ -89,7 +105,7 @@ public class SyncSampleBuffer {
                 lsamp[writehead] = pak.readL();
                 rsamp[writehead] = pak.readR();
                 pak.nextRead();
-                writehead = ++writehead % size;
+                writehead = ++writehead % maxSize;
                 empty = false;
             } else {
                 return false;
@@ -98,8 +114,20 @@ public class SyncSampleBuffer {
         return false;
     }
 
+    /**
+     * Skips the next few samples
+     * @param count The number of samples to skip
+     * @throws IllegalArgumentException if count is negative
+     */
     public synchronized void skip(int count) {
-        readhead = (readhead + count) % size;
+        if(count < 0) {
+            throw new IllegalArgumentException("Skip count must be positive");
+        }
+        if(count > size()) {
+            clear();
+        } else {
+            readhead = (readhead + count) % maxSize;
+        }
     }
 
     /**
@@ -118,17 +146,25 @@ public class SyncSampleBuffer {
         return readhead == writehead && !empty;
     }
 
-    public int size() {
-        return size;
+    /**
+     * Gets the max size of the buffer
+     * @return the max size
+     */
+    public int getMaxSize() {
+        return maxSize;
     }
 
-    public synchronized int count() {
+    /**
+     * Gets the number of packets currently in the buffer
+     * @return the number of packets
+     */
+    public synchronized int size() {
         if(isFull()) {
-            return size;
+            return maxSize;
         }
         int tw = writehead;
         if(writehead < readhead) {
-            tw += size;
+            tw += maxSize;
         }
         return tw - readhead;
     }

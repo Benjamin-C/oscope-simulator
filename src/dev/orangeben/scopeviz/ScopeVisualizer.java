@@ -2,14 +2,10 @@ package dev.orangeben.scopeviz;
 
 import java.awt.Color;
 import java.awt.Dimension;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintWriter;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
-import java.util.Random;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
@@ -24,9 +20,10 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
-public class App {
+public class ScopeVisualizer {
     
-    static double pad = 64;
+    private static double pad = 64;
+    private static ScopeScreen screen;
     
     static void showLineInfoFormats(final Line.Info lineInfo) {
         if (lineInfo instanceof DataLine.Info) {
@@ -39,59 +36,56 @@ public class App {
         }
     }
     
-    public static void displayMixerInfo()
-    {
+    public static void displayMixerInfo() {
         Mixer.Info [] mixersInfo = AudioSystem.getMixerInfo();
         
-        for (Mixer.Info mixerInfo : mixersInfo)
-        {
+        for (Mixer.Info mixerInfo : mixersInfo) {
             System.out.println("Mixer: " + mixerInfo.getName());
             
             Mixer mixer = AudioSystem.getMixer(mixerInfo);
             
             Line.Info [] sourceLineInfo = mixer.getSourceLineInfo();
-            for (Line.Info info : sourceLineInfo)
-            {
+            for (Line.Info info : sourceLineInfo) {
                 System.out.println(info.toString());
                 showLineInfoFormats(info);
             }
             
             Line.Info [] targetLineInfo = mixer.getTargetLineInfo();
-            for (Line.Info info : targetLineInfo)
-            {
+            for (Line.Info info : targetLineInfo) {
                 System.out.println(info.toString());
                 showLineInfoFormats(info);
             }
         }
     }
     
-    public static void feedTestData(ScopeScreen screen) {
-        double time = 0;
-        System.out.println("Test data!");
-        while(true) {
-            int x = (int) (screen.WIDTH/2  * (Math.cos(2*Math.PI*time*100) + 1));
-            int y = (int) (screen.HEIGHT/2 * (Math.sin(2*Math.PI*time*100) + 1));
-            // System.out.println(String.format("Point %.3f (%d, %d) %f %f", time, x, y, 2*Math.PI*time*1000, Math.cos(2*Math.PI*time*1000)));
-            screen.addPoint(x, y);
-            try {
-                Thread.sleep(0, 50000);
-            } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-            time += 0.0001;
-        }
-    }
+    // public static void feedTestCircle() {
+    //     double time = 0;
+    //     System.out.println("Test data!");
+    //     while(true) {
+    //         int x = (int) (screen.SIZE/2  * (Math.cos(2*Math.PI*time*100) + 1));
+    //         int y = (int) (screen.SIZE/2 * (Math.sin(2*Math.PI*time*100) + 1));
+    //         // System.out.println(String.format("Point %.3f (%d, %d) %f %f", time, x, y, 2*Math.PI*time*1000, Math.cos(2*Math.PI*time*1000)));
+    //         screen.addPoint(x, y);
+    //         try {
+    //             Thread.sleep(0, 50000);
+    //         } catch (InterruptedException e) {
+    //             // TODO Auto-generated catch block
+    //             e.printStackTrace();
+    //         }
+    //         time += 0.0001;
+    //     }
+    // }
     
     public static void main(String[] args) throws Exception {
 
         JFrame jf = new JFrame();
         jf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         
-        ScopeScreen screen = new ScopeScreen();
+        BufferSource as = new BufferSource(4410);
+        ScopeScreen screen = new ScopeScreen(as);
         screen.start();
 
-        pad = Math.round((double) Short.MAX_VALUE / (screen.WIDTH/2));
+        pad = Math.round((double) Short.MAX_VALUE / (screen.SIZE/2));
         
         JPanel jp = new JPanel();
         jp.setLayout(new BoxLayout(jp, BoxLayout.Y_AXIS));
@@ -212,19 +206,19 @@ public class App {
                     caplen += data.length;
                 }
                 // System.out.println("Buffer has " + retimer.getSize() + " samples left");
-                int sz = screen.getBuffCount();
-                buffsizeLabel.setText(String.format("Buff: %d (%.1f%%) ", sz, ((double)sz/screen.getBuffSize())*100d));
+                int sz = as.size();
+                buffsizeLabel.setText(String.format("Buff: %d (%.1f%%) ", sz, ((double)sz/as.maxSize())*100d));
                 BufferPacket pak = new BufferPacket(numBytesRead);
                 for(int i = 0; i < numBytesRead; i += 4) {
                     short l = (short) ((data[i+1] << 8) | (data[i+0] & 0xFF));
                     short r = (short) ((data[i+3] << 8) | (data[i+2] & 0xFF));
-                    int x = (int) ((double) l / pad) + screen.WIDTH/2;
-                    int y = screen.HEIGHT - (int) (((double) r / pad) + screen.HEIGHT/2);
+                    int x = (int) ((double) l / pad) + screen.SIZE/2;
+                    int y = screen.SIZE - (int) (((double) r / pad) + screen.SIZE/2);
                     if(!pak.write(x, y)) {
                         System.out.println("Buffer full, skipping sample!");
                     }
                 }
-                screen.addPoints(pak);
+                as.write(pak);
                 if(capt) {
                     // if(caplen > 4410) {
                     //     screen.stop();
@@ -255,48 +249,6 @@ public class App {
             }
         } catch (LineUnavailableException ex) {
             // Handle the error ... 
-        }
-        
-        
-        
-        Random r = new Random();
-        
-        int xd = r.nextInt(5)-2;
-        int yd = r.nextInt(5)-2;
-        int x = r.nextInt(screen.WIDTH-1);
-        int y = r.nextInt(screen.HEIGHT-1);
-        while(true) {
-            // for(int j = 0; j < 8; j++) {
-            //     for(int i = 0; i < 500; i++) {
-            //         screen.addPoint(i, j*4);
-            //         Thread.sleep(1);
-            //     }
-            // }
-            // Thread.sleep(16);
-            // screen.stop();
-            
-            x += xd;
-            y += yd;
-            
-            if(x < 0) {
-                x = 0;
-                xd *= -1;
-            }
-            if(y < 0) {
-                y = 0;
-                yd *= -1;
-            }
-            if(x > screen.WIDTH-1) {
-                x = screen.WIDTH-1;
-                xd *= -1;
-            }
-            if(y > screen.HEIGHT-1) {
-                y = screen.HEIGHT-1;
-                yd *= -1;
-            }
-            
-            screen.addPoint((short) x, (short) y);
-            Thread.sleep(1);
         }
     }
 }

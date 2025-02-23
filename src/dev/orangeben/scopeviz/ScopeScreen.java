@@ -15,55 +15,72 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 
 public class ScopeScreen extends JPanel {
 
+    /** The size of the display */
     public final int SIZE = 1024;
-    @Deprecated
-    /**
-     * Width of the screen
-     */
-    public final int WIDTH = SIZE;
-    @Deprecated
-    /** Height of the screen */
-    public final int HEIGHT = SIZE;
+    /** The color of the display */
     private Color color;
+    /** Frame updater thread */
     private Thread updater;
+    /** If the display is running */
     private volatile boolean updating;
+    /** The sample rate of the incoming data. Must be an integer multiple of the target FPS */
     private final double samplesPerSecond = 44100;
+    /** The target nubmer of frames per seconds to display */
     private final double targetFPS = 60;
+    /** The number of nanoseconds per frame */
     private final int samplesPerFrame = (int) (samplesPerSecond / targetFPS);
+    /** The actual observed FPS */
     private volatile double fps = 0;
+    /** The actual scope screen */
     private BufferedImage screen;
+    /** The label that holds the scope screen */
     private JLabel screenLabel;
+    /** Label to hold the current FPS */
     private JLabel fpslabel;
+    /** Checkbox to control line drawing */
     private JCheckBox linecheck;
+    /** If lines are being drawn */
     private boolean drawLines = true;
+    /** Checkbox to control point drawing */
     private JCheckBox pointcheck;
+    /** If points are being rdrawn */
     private boolean drawPoints = false;
+    /** Panel of screen controls */
     private JPanel controlsPanel;
+    /** Update stop button */
     private JButton stopButton;
+    /** Approximate screen decay time in seconds */
     private double decay = 0.1;
-
+    /** x or y of previously drawn point */
     private int lx, ly = 0;
-
-    private SyncSampleBuffer bigbuff;
-
+    /** The source of the data to draw */
+    private AudioSource source;
+    /** The alpha to dim the screen over time */
     private final int decayRate;
+    /** The diagonal screen distance in px */
     private final double maxdist = Math.sqrt(2)*SIZE;
-
+    /** The graphics interface to the screen */
     private Graphics g;
 
-    public ScopeScreen() {
+    /**
+     * Creates a new ScopeScreen
+     * @param source The source of the audio to display
+     */
+    public ScopeScreen(AudioSource source) {
+        if(source == null) {
+            throw new NullPointerException("Source may not be null");
+        }
         setBackground(new Color(8, 8, 8));
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 
-        bigbuff = new SyncSampleBuffer((int) samplesPerSecond);
+        this.source = source;
         
         controlsPanel = new JPanel();
-        // controlsPanel.setLayout(new BoxLayout(controlsPanel, BoxLayout.X_AXIS));
         controlsPanel.setBackground(getBackground());
-        // controlsPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
         
         stopButton = new JButton("Stop");
         stopButton.addActionListener(new ActionListener() {
@@ -127,22 +144,22 @@ public class ScopeScreen extends JPanel {
     /**
      * Saves the screen to a PNG
      * @param filename where to save the screen
+     * @throws IOException if the file can't be written
      */
-    public void save(String filename) {
-        try {
-            File out = new File(filename);
-            ImageIO.write(screen, "png", out);
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
+    public void save(String filename) throws IOException {
+        File out = new File(filename);
+        ImageIO.write(screen, "png", out);
     }
 
+    /**
+     * Redraws the screen
+     */
     private void redraw() {
         synchronized(g) {
             g.setColor(new Color(0, 0, 0, decayRate));
             g.fillRect(0, 0, SIZE, SIZE);
             g.setColor(color);
-            BufferPacket pak = bigbuff.getMany((samplesPerFrame > bigbuff.count()) ? bigbuff.count() : samplesPerFrame);
+            BufferPacket pak = source.read(samplesPerFrame);
             while(pak.hasMoreData()) {
                 int x = pak.readL();
                 int y = pak.readR();
@@ -176,22 +193,15 @@ public class ScopeScreen extends JPanel {
         screenLabel.repaint();
     }
 
-    int ovc = 0;
-
-    public void addPoint(int x, int y) {
-        if(x >= 0 && x <= SIZE-1 && y >= 0 && y <= SIZE-1) {
-            bigbuff.add(x, y);
-        }
-    }
-
-    public void addPoints(BufferPacket pak) {
-        bigbuff.addMany(pak);
-    }
-
+    /**
+     * Checks if the updater is running
+     * @return If the updater is running
+     */
     public boolean isUpdating() {
         return updating;
     }
 
+    /** Starts the updater */
     public void start() {
         updating = true;
         updater = new Thread("screen_updater") {
@@ -214,7 +224,7 @@ public class ScopeScreen extends JPanel {
                                 System.out.println(String.format("Behind, skipping %.1f frames", skip));
                                 int sc = (int) Math.floor(skip);
                                 last += targetFrameTime * sc;
-                                bigbuff.skip(sc*samplesPerFrame);
+                                source.skip(sc*samplesPerFrame);
                                 last = System.nanoTime();
                                 fpslabel.setForeground(Color.RED);
                             } else {
@@ -240,6 +250,7 @@ public class ScopeScreen extends JPanel {
         stopButton.setText("Stop");
     }
 
+    /** Stops the updater */
     public void stop() {
         updating = false;
         try {
@@ -248,13 +259,5 @@ public class ScopeScreen extends JPanel {
             e.printStackTrace();
         }
         stopButton.setText("Start");
-    }
-
-    public int getBuffCount() {
-        return bigbuff.count();
-    }
-
-    public int getBuffSize() {
-        return bigbuff.size();
     }
 }
