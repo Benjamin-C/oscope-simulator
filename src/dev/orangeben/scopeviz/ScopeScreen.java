@@ -15,6 +15,7 @@ import java.awt.Graphics;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.io.File;
 import java.io.IOException;
 
@@ -25,7 +26,8 @@ public class ScopeScreen extends JPanel {
     /** The menu to change the size */
     private MenuParameter sizeMenu;
     /** The color of the display */
-    private Color color = new Color(255, 128, 0);
+    // private Color color = new Color(255, 128, 0);
+    private Color color = new Color(128, 64, 0);
     /** The menu to change the color */
     private MenuParameter colorMenu;
     /** Frame updater thread */
@@ -51,7 +53,7 @@ public class ScopeScreen extends JPanel {
     /** Checkbox to control point drawing */
     private JCheckBox pointcheck;
     /** If points are being rdrawn */
-    private boolean drawPoints = false;
+    private boolean drawPoints = true;
     /** Control menu bar */
     private JCheckBox fpscheck;
     /** Checkbox to control FPS drawing */
@@ -60,8 +62,10 @@ public class ScopeScreen extends JPanel {
     private JMenu controlsMenu;
     /** Update stop button */
     private JMenuItem stopButton;
+    private JMenuItem clearButton;
     /** Approximate screen decay time in seconds */
-    private double decay = 0.1;
+    // private double decay = 0.1;
+    private double decay = 1;
     /** Menu item to change decay time */
     private MenuParameter decayMenu;
     /** x or y of previously drawn point */
@@ -69,7 +73,8 @@ public class ScopeScreen extends JPanel {
     /** The source of the data to draw */
     private AudioSource source;
     /** The alpha to dim the screen over time */
-    private int decayRate;
+    private double decayR, decayG, decayB;
+    private double decayRamt, decayGamt, decayBamt;
     /** The diagonal screen distance in px */
     private double maxdist;
     /** The graphics interface to the screen */
@@ -102,9 +107,33 @@ public class ScopeScreen extends JPanel {
             }
         });
         controlsMenu.add(stopButton);
+
+        clearButton = new JMenuItem("Clear");
+        clearButton.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                synchronized(g) {
+                    g.setColor(Color.BLACK);
+                    g.fillRect(0, 0, size, size);
+                }
+            }
+        });
+        controlsMenu.add(clearButton);
         
         fpslabel = new JMenuItem();
         controlsMenu.add(fpslabel);
+
+        JMenuItem screenshotMenu = new JMenuItem("Screenshot");
+        screenshotMenu.addActionListener(new ActionListener() {
+			@Override public void actionPerformed(ActionEvent e) {
+                try {
+					save("screenshot.png");
+				} catch (IOException e1) {
+					e1.printStackTrace();
+				}
+			}
+            
+        });
+        controlsMenu.add(screenshotMenu);
 
         sizeMenu = new MenuParameter("Size", "Scope Size", "Scope size in px") {
 			@Override public String getStarter() {
@@ -130,12 +159,12 @@ public class ScopeScreen extends JPanel {
 
         decayMenu = new MenuParameter("Decay", "Decay Time", "New approx decay time (s)") {
 			@Override public String getStarter() {
-                return String.format("%.3f", decay);
+                return String.format("%.2f", decay);
 			}
 			@Override public boolean validateInput(String val) {
                 try {
                     double testdecay = Double.parseDouble(val);
-                    if(testdecay > 0) {
+                    if(testdecay > 0.01) {
                         return true;
                     }    
                 } catch (Exception e) {
@@ -168,6 +197,7 @@ public class ScopeScreen extends JPanel {
 			}
 			@Override public void onOK(String val) {
                 color = new Color(Integer.parseInt(val,16));
+                calcDecay();
                 System.out.println("[Scope] Changed color to " + val);
 			}
         };
@@ -210,14 +240,6 @@ public class ScopeScreen extends JPanel {
         screenLabel = new JLabel();
 
         createScreen();
-        g.setColor(color);
-        g.fillRect(0, 0, 1, 1);
-        g.setColor(new Color(0, 0, 0, decayRate));
-        for(int i = 0; i < (int) (decay*targetFPS); i++) {
-            g.fillRect(0, 0, 1, 1);
-        }
-        g.setColor(new Color(screen.getRGB(0, 0)));
-        g.fillRect(0, 0, size, size);
 
         screenPanel = new JPanel();
         screenPanel.setBackground(getBackground());
@@ -227,8 +249,14 @@ public class ScopeScreen extends JPanel {
 
     public void setDecay(Double newDecay) {
         decay = newDecay;
-        decayRate = (int) Math.min((256 / (decay*targetFPS)) * 3, 255);
-        System.out.println("decayRate: " + decayRate);
+        calcDecay();
+    }
+
+    public void calcDecay() {
+        decayR = (double) color.getRed()   / (decay*targetFPS);
+        decayG = (double) color.getGreen() / (decay*targetFPS);
+        decayB = (double) color.getBlue()  / (decay*targetFPS);
+        System.out.println(String.format("Decay %.2f: %f %f %f", decay, decayR, decayG, decayB));
     }
 
     public JMenu getControlMenu() {
@@ -282,8 +310,36 @@ public class ScopeScreen extends JPanel {
      */
     private void redraw() {
         synchronized(g) {
-            g.setColor(new Color(0, 0, 0, decayRate));
-            g.fillRect(0, 0, size, size);
+            decayRamt += decayR;
+            decayGamt += decayG;
+            decayBamt += decayB;
+
+            int thisR = (int) decayRamt;
+            int thisG = (int) decayGamt;
+            int thisB = (int) decayBamt;
+            
+            decayRamt -= thisR;
+            decayGamt -= thisG;
+            decayBamt -= thisB;
+
+            if(screen.getType() != BufferedImage.TYPE_INT_RGB) {
+                stop();
+                throw new IllegalStateException("The image type must be BufferedImage.TYPE_INT_RGB = 1");
+            }
+
+            int[] buff = ((DataBufferInt)screen.getRaster().getDataBuffer()).getData();
+            for(int i = 0; i < buff.length; i++) {
+                Color c = new Color(buff[i]);
+                int r = c.getRed() - thisR;
+                int g = c.getGreen() - thisG;
+                int b = c.getBlue() - thisB;
+                r = (r<0) ? 0 : r;
+                g = (g<0) ? 0 : g;
+                b = (b<0) ? 0 : b;
+                buff[i] = new Color(r, g, b).getRGB();
+            }
+            
+
             g.setColor(color);
             BufferPacket pak = source.read((int) (source.getSamplerate()/targetFPS));
             int pad = (int) Math.round((double) Short.MAX_VALUE / (size/2));
@@ -302,8 +358,79 @@ public class ScopeScreen extends JPanel {
                         int gv = (int) (color.getGreen() * bright);
                         int bv = (int) (color.getBlue() * bright) ;
                         try {
-                            g.setColor(new Color(rv, gv, bv));
-                            g.drawLine(lx, ly, x, y);
+                            int dx = (lx < x) ? x - lx : lx - x;
+                            int dy = (ly < y) ? y - ly : ly - y;
+
+                            int startA, endA, startB, endB, startX, startY;
+
+                            int[] swap = {0, 0, 0, 0};
+
+                            if(dx > dy) {
+                                swap[0] = 1;
+                                swap[3] = 1;
+                                if(lx < x) {
+                                    startA = lx;
+                                    startX = lx;
+                                    endA = x;
+                                    startB = ly;
+                                    startY = ly;
+                                    endB = y;
+                                } else {
+                                    startA = x;
+                                    startX = x;
+                                    endA = lx;
+                                    startB = y;
+                                    startY = y;
+                                    endB = ly;
+                                }
+                            } else {
+                                swap[1] = 1;
+                                swap[2] = 1;
+                                if(ly < y) {
+                                    startA = ly;
+                                    startY = ly;
+                                    endA = y;
+                                    startB = lx;
+                                    startX = lx;
+                                    endB = x;
+                                } else {
+                                    startA = y;
+                                    startY = y;
+                                    endA = ly;
+                                    startB = x;
+                                    startX = x;
+                                    endB = lx;
+                                }
+                            }
+
+                            double gb = (double) (endB - startB) / (endA - startA);
+                            double accum = 0;
+
+                            for(int a = 0; a < endA-startA; a++) {
+                                accum += gb;
+                                int cb = (int) (accum + 0.5);
+                                int drawx = (a*swap[0]) + ((cb*swap[1])) + startX;
+                                int drawy = (a*swap[2]) + ((cb*swap[3])) + startY;
+                                int index = (drawy*size)+drawx;
+                                try {
+                                    Color bc = new Color(buff[index]);
+                                    int newr = rv+bc.getRed();
+                                    int newg = gv+bc.getGreen();
+                                    int newb = bv+bc.getBlue();
+                                    Color towrite;
+                                    if(newr > 255 || newg > 255 || newb > 255) {
+                                        int maxv = Math.max(newr, Math.max(newg, newb));
+                                        double sf = 255d / maxv;
+                                        newr = (int) (sf*newr);
+                                        newg = (int) (sf*newg);
+                                        newb = (int) (sf*newb);
+                                    }
+                                    towrite = new Color(newr, newg, newb);
+                                    buff[index] = towrite.getRGB();
+                                } catch(ArrayIndexOutOfBoundsException e) {
+                                    System.out.println("Array index out of bounds while drawing");
+                                }
+                            }
                         } catch (IllegalArgumentException e) {
                             System.out.println("Color was out of range, this is fine if you just changed something. rgb:" + rv + " " + gv + " " + bv);
                         }
@@ -313,7 +440,8 @@ public class ScopeScreen extends JPanel {
                         lx = x;
                         ly = y;
                     } else if(drawPoints) {
-                        screen.setRGB(x, y, color.getRGB());
+                        // screen.setRGB(x, y, color.getRGB());
+                        buff[y*size+x] = color.getRGB();
                     }
                 }
                 pak.nextRead();

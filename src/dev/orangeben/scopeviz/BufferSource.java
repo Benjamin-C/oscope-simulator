@@ -56,6 +56,10 @@ public class BufferSource implements AudioSource {
         buff.addMany(pkt);
     }
 
+    public void write(int l, int r) {
+        buff.add(l, r);
+    }
+
     /**
      * Gets the number of samples in the buffer
      * @return The number of samples in the buffer
