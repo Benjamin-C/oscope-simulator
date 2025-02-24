@@ -53,12 +53,12 @@ public class ScopeVisualizer {
 
         JMenuBar menubar = new JMenuBar();
         JMenu sourcemenu = new JMenu("Source");
-        SelectJMenu mixermenu = new SelectJMenu("Mixer", cs.getMixers(), cs.getInterfaceNum()) {
+        MenuSelector mixermenu = new MenuSelector("Mixer", cs.getMixers(), cs.getInterfaceNum()) {
 			@Override
-			public void onUpdate(int num, Object arg, SelectJMenu menu) {
+			public void onUpdate(int num, Object arg, MenuSelector menu) {
                 if(menu.getSelectedIndex() != num) {
                     cs.setInterfaceNum(num);
-                    ((SelectJMenu) arg).setItems(cs.getLines(num));
+                    ((MenuSelector) arg).setItems(cs.getLines(num));
                     if(menu.getText().charAt(0) != '*') {
                         menu.setText("*" + menu.getText());
                     }
@@ -66,9 +66,9 @@ public class ScopeVisualizer {
 			}
             
         };
-        SelectJMenu linemenu = new SelectJMenu("Line", cs.getLines(), cs.getLineNum()) {
+        MenuSelector linemenu = new MenuSelector("Line", cs.getLines(), cs.getLineNum()) {
 			@Override
-			public void onUpdate(int num, Object arg, SelectJMenu menu) {
+			public void onUpdate(int num, Object arg, MenuSelector menu) {
                 System.out.println("Selecting " + num);
                 cs.setLineNum(num);
                 cs.stop();

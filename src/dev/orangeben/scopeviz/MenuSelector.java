@@ -6,24 +6,24 @@ import java.awt.event.ActionListener;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 
-public abstract class SelectJMenu extends JMenu {
+public abstract class MenuSelector extends JMenu {
 
     private String[] names;
     private int selection;
     private JMenuItem[] items;
-    private SelectJMenu me;
+    private MenuSelector me;
     private Object arg;
 
-    public SelectJMenu(String[] names) {
+    public MenuSelector(String[] names) {
         this(null, names, 0);
     }
-    public SelectJMenu(String label, String[] names) {
+    public MenuSelector(String label, String[] names) {
         this(label, names, 0);
     }
-    public SelectJMenu(String[] names, int selection) {
+    public MenuSelector(String[] names, int selection) {
         this(null, names, selection);
     }
-    public SelectJMenu(String label, String[] names, int selection) {
+    public MenuSelector(String label, String[] names, int selection) {
         super();
         if(label != null) {
             setText(label);
@@ -84,7 +84,7 @@ public abstract class SelectJMenu extends JMenu {
      * @param arg A user-supplied argument
      * @param menu The menu that called this function
      */
-    public abstract void onUpdate(int num, Object arg, SelectJMenu menu);
+    public abstract void onUpdate(int num, Object arg, MenuSelector menu);
 
 
 

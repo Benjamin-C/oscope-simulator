@@ -8,6 +8,7 @@ import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 
 import java.awt.Color;
 import java.awt.Graphics;
@@ -20,9 +21,13 @@ import java.io.IOException;
 public class ScopeScreen extends JPanel {
 
     /** The size of the display */
-    public final int SIZE = 512;
+    private int size = 1024;
+    /** The menu to change the size */
+    private MenuParameter sizeMenu;
     /** The color of the display */
-    private Color color;
+    private Color color = new Color(255, 128, 0);
+    /** The menu to change the color */
+    private MenuParameter colorMenu;
     /** Frame updater thread */
     private Thread updater;
     /** If the display is running */
@@ -38,7 +43,7 @@ public class ScopeScreen extends JPanel {
     /** The jpanel the screen label lives in */
     private JPanel screenPanel;
     /** Label to hold the current FPS */
-    private JLabel fpslabel;
+    private JMenuItem fpslabel;
     /** Checkbox to control line drawing */
     private JCheckBox linecheck;
     /** If lines are being drawn */
@@ -57,14 +62,16 @@ public class ScopeScreen extends JPanel {
     private JMenuItem stopButton;
     /** Approximate screen decay time in seconds */
     private double decay = 0.1;
+    /** Menu item to change decay time */
+    private MenuParameter decayMenu;
     /** x or y of previously drawn point */
     private int lx, ly = 0;
     /** The source of the data to draw */
     private AudioSource source;
     /** The alpha to dim the screen over time */
-    private final int decayRate;
+    private int decayRate;
     /** The diagonal screen distance in px */
-    private final double maxdist = Math.sqrt(2)*SIZE;
+    private double maxdist;
     /** The graphics interface to the screen */
     private Graphics g;
 
@@ -96,8 +103,72 @@ public class ScopeScreen extends JPanel {
         });
         controlsMenu.add(stopButton);
         
-        fpslabel = new JLabel();
+        fpslabel = new JMenuItem();
         controlsMenu.add(fpslabel);
+
+        sizeMenu = new MenuParameter("Size", "Scope Size", "Scope size in px") {
+			@Override public String getStarter() {
+                return String.format("%d", size);
+			}
+			@Override public boolean validateInput(String val) {
+                try {
+                    double testdecay = Integer.parseInt(val);
+                    if(testdecay > 0) {
+                        return true;
+                    }    
+                } catch (Exception e) {
+                    // Don't need to do anything
+                }
+                return false;
+			}
+			@Override public void onOK(String val) {
+                setScreenSize(Integer.parseInt(val));
+			}
+        };
+        controlsMenu.add(sizeMenu);
+
+        decayMenu = new MenuParameter("Decay", "Decay Time", "New approx decay time (s)") {
+			@Override public String getStarter() {
+                return String.format("%.3f", decay);
+			}
+			@Override public boolean validateInput(String val) {
+                try {
+                    double testdecay = Double.parseDouble(val);
+                    if(testdecay > 0) {
+                        return true;
+                    }    
+                } catch (Exception e) {
+                    // Don't need to do anything
+                }
+                return false;
+			}
+			@Override public void onOK(String val) {
+                setDecay(Double.parseDouble(val));
+			}
+        };
+        controlsMenu.add(decayMenu);
+
+        colorMenu = new MenuParameter("Color", "Set Color", "Hex code for color") {
+			@Override public String getStarter() {
+                return String.format("%02X%02X%02X", color.getRed(), color.getGreen(), color.getBlue());
+			}
+			@Override public boolean validateInput(String val) {
+                try {
+                    if(val.length() == 6) {
+                        @SuppressWarnings("unused")
+						Color testcol = new Color(Integer.parseInt(val,16));
+                        return true;
+                    }
+                } catch (Exception e) {
+                    // Don't need to do anything
+                }
+                return false;
+			}
+			@Override public void onOK(String val) {
+                color = new Color(Integer.parseInt(val,16));
+			}
+        };
+        controlsMenu.add(colorMenu);
 
         linecheck = new JCheckBox("Draw lines");
         linecheck.setSelected(drawLines);
@@ -128,11 +199,11 @@ public class ScopeScreen extends JPanel {
 
         add(controlsMenu);
 
-        color = new Color(255, 128, 0);
-        decayRate = (int) (256 / (decay*targetFPS)) * 3;
+        setDecay(decay);
+        
+        screenLabel = new JLabel();
 
-        screen = new BufferedImage(SIZE, SIZE, BufferedImage.TYPE_INT_RGB);
-        g = screen.createGraphics();
+        createScreen();
         g.setColor(color);
         g.fillRect(0, 0, 1, 1);
         g.setColor(new Color(0, 0, 0, decayRate));
@@ -140,15 +211,18 @@ public class ScopeScreen extends JPanel {
             g.fillRect(0, 0, 1, 1);
         }
         g.setColor(new Color(screen.getRGB(0, 0)));
-        g.fillRect(0, 0, SIZE, SIZE);
-        screenLabel = new JLabel(new ImageIcon(screen));
-        screenLabel.setBackground(Color.GREEN);
-        // screenLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        g.fillRect(0, 0, size, size);
 
         screenPanel = new JPanel();
         screenPanel.setBackground(getBackground());
         screenPanel.add(screenLabel);
         add(screenPanel);
+    }
+
+    public void setDecay(Double newDecay) {
+        decay = newDecay;
+        decayRate = (int) Math.min((256 / (decay*targetFPS)) * 3, 255);
+        System.out.println("decayRate: " + decayRate);
     }
 
     public JMenu getControlMenu() {
@@ -166,21 +240,46 @@ public class ScopeScreen extends JPanel {
     }
 
     /**
+     * Creates the screen to use in the scope
+     */
+    private void createScreen() {
+        maxdist = Math.sqrt(2)*size;
+        screen = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+        g = screen.createGraphics();
+        screenLabel.setIcon(new ImageIcon(screen));
+    }
+
+    /**
+     * Sets the size of the screen
+     * @param size The new size of the screen in pixels
+     */
+    public void setScreenSize(int size) {
+        if(size < 0) {
+            throw new IllegalArgumentException("Size must be positive");
+        }
+        synchronized(g) {
+            this.size = size;
+            createScreen();
+        }
+            SwingUtilities.getWindowAncestor(this).pack();
+    }
+
+    /**
      * Redraws the screen
      */
     private void redraw() {
         synchronized(g) {
             g.setColor(new Color(0, 0, 0, decayRate));
-            g.fillRect(0, 0, SIZE, SIZE);
+            g.fillRect(0, 0, size, size);
             g.setColor(color);
             BufferPacket pak = source.read((int) (source.getSamplerate()/targetFPS));
-            int pad = (int) Math.round((double) Short.MAX_VALUE / (SIZE/2));
+            int pad = (int) Math.round((double) Short.MAX_VALUE / (size/2));
             while(pak.hasMoreData()) {
                 int l = pak.readL();
                 int r = pak.readR();
-                int x = (int) ((double) l / pad) + SIZE/2;
-                int y = SIZE - (int) (((double) r / pad) + SIZE/2);
-                if((x >= 0 && x <= SIZE-1 && y >= 0 && y <= SIZE-1)) {
+                int x = (int) ((double) l / pad) + size/2;
+                int y = size - (int) (((double) r / pad) + size/2);
+                if((x >= 0 && x <= size-1 && y >= 0 && y <= size-1)) {
                     if(drawLines) {
                         int xs = (lx-x);
                         int ys = (ly-y);
@@ -208,8 +307,11 @@ public class ScopeScreen extends JPanel {
                 pak.nextRead();
             }
             if(drawFPS) {
+                String str = String.format("FPS: % 4.1f", fps);
+                g.setColor(Color.BLACK);
+                g.fillRect(0, 0, (int) g.getFontMetrics().getStringBounds(str, g).getWidth(), g.getFontMetrics().getHeight()+2);
                 g.setColor(fpslabel.getForeground());
-                g.drawString(String.format("FPS: % 4.1f", fps), 4, g.getFontMetrics().getHeight());
+                g.drawString(str, 4, g.getFontMetrics().getHeight());
             }
         }
         screenLabel.repaint();
