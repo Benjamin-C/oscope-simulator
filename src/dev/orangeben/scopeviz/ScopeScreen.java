@@ -123,6 +123,7 @@ public class ScopeScreen extends JPanel {
 			}
 			@Override public void onOK(String val) {
                 setScreenSize(Integer.parseInt(val));
+                System.out.println("[Scope] Changed screen size to " + val);
 			}
         };
         controlsMenu.add(sizeMenu);
@@ -144,6 +145,7 @@ public class ScopeScreen extends JPanel {
 			}
 			@Override public void onOK(String val) {
                 setDecay(Double.parseDouble(val));
+                System.out.println("[Scope] Set delay to " + val);
 			}
         };
         controlsMenu.add(decayMenu);
@@ -166,6 +168,7 @@ public class ScopeScreen extends JPanel {
 			}
 			@Override public void onOK(String val) {
                 color = new Color(Integer.parseInt(val,16));
+                System.out.println("[Scope] Changed color to " + val);
 			}
         };
         controlsMenu.add(colorMenu);
@@ -175,6 +178,7 @@ public class ScopeScreen extends JPanel {
         linecheck.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 drawLines = linecheck.isSelected();
+                System.out.println("[Scope] Lines " + ((drawLines) ? "enabled" : "disabled"));
             }
         });
         controlsMenu.add(linecheck);
@@ -184,6 +188,7 @@ public class ScopeScreen extends JPanel {
         pointcheck.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 drawPoints = pointcheck.isSelected();
+                System.out.println("[Scope] Points " + ((drawPoints) ? "enabled" : "disabled"));
             }
         });
         controlsMenu.add(pointcheck);
@@ -193,6 +198,7 @@ public class ScopeScreen extends JPanel {
         fpscheck.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 drawFPS = fpscheck.isSelected();
+                System.out.println("[Scope] FPS " + ((drawFPS) ? "enabled" : "disabled"));
             }
         });
         controlsMenu.add(fpscheck);
@@ -243,10 +249,17 @@ public class ScopeScreen extends JPanel {
      * Creates the screen to use in the scope
      */
     private void createScreen() {
-        maxdist = Math.sqrt(2)*size;
-        screen = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
-        g = screen.createGraphics();
-        screenLabel.setIcon(new ImageIcon(screen));
+        // Make a fake object to use for initial setup
+        Object sync = g;
+        if(sync == null) {
+            sync = new Object();
+        }
+        synchronized(sync) {
+            maxdist = Math.sqrt(2)*size;
+            screen = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+            g = screen.createGraphics();
+            screenLabel.setIcon(new ImageIcon(screen));
+        }
     }
 
     /**
@@ -261,7 +274,7 @@ public class ScopeScreen extends JPanel {
             this.size = size;
             createScreen();
         }
-            SwingUtilities.getWindowAncestor(this).pack();
+        SwingUtilities.getWindowAncestor(this).pack();
     }
 
     /**
@@ -291,9 +304,8 @@ public class ScopeScreen extends JPanel {
                         try {
                             g.setColor(new Color(rv, gv, bv));
                             g.drawLine(lx, ly, x, y);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            System.out.println("rgb:" + rv + " " + gv + " " + bv);
+                        } catch (IllegalArgumentException e) {
+                            System.out.println("Color was out of range, this is fine if you just changed something. rgb:" + rv + " " + gv + " " + bv);
                         }
                         if(drawPoints) {
                             screen.setRGB(lx, ly, color.getRGB());
@@ -327,6 +339,7 @@ public class ScopeScreen extends JPanel {
 
     /** Starts the updater */
     public void start() {
+        System.out.println("[Scope] Starting ... ");
         source.start();
         updating = true;
         updater = new Thread("screen_updater") {
@@ -373,6 +386,7 @@ public class ScopeScreen extends JPanel {
         };
         updater.start();
         stopButton.setText("Stop");
+        System.out.println("[Scope] Started");
     }
 
     /** Stops the updater */
@@ -385,5 +399,6 @@ public class ScopeScreen extends JPanel {
         }
         source.stop();
         stopButton.setText("Start");
+        System.out.println("[Scope] Stopped");
     }
 }
