@@ -5,7 +5,7 @@ This program simulates the visuals provided by an old analog oscilloscope in XY 
 You'll need Java installed to run it. Once you have Java and the .jar from the releases page, you can run it with `java -jar scope-visualizer.jar`
 
 ## Music Source
-This scope is designed to play oscilloscope music. [Jerobeam Fenderson](https://oscilloscopemusic.com) has a good collection as well as software you can use to create your own. There are also many other sources on the internet.
+This scope is designed to play oscilloscope music. [Jerobeam Fenderson](https://oscilloscopemusic.com) has a good collection as well as software you can use to create your own. [Chris Allen](https://www.youtube.com/@ChrisAllenMusic) also has many tracks available. There are also many other sources on the internet.
 
 Important: For best results, do not use a streaming service (Youtube, Spotify etc) to get your music since they employ lossy compression which degrades the images. Downloading uncompressed wav or flac files is the best way to get crisp images.
 
