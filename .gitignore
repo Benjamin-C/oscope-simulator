@@ -4,3 +4,4 @@ log*
 *.mp3
 .vscode/
 bin/
+*.jar

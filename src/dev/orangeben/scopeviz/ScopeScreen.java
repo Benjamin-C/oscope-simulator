@@ -64,8 +64,7 @@ public class ScopeScreen extends JPanel {
     private JMenuItem stopButton;
     private JMenuItem clearButton;
     /** Approximate screen decay time in seconds */
-    // private double decay = 0.1;
-    private double decay = 1;
+    private double decay = 0.1;
     /** Menu item to change decay time */
     private MenuParameter decayMenu;
     /** x or y of previously drawn point */
